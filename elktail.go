@@ -9,9 +9,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/codegangsta/cli"
+	"github.com/olivere/elastic/v7"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/net/context"
+	"context"
 	"gopkg.in/olivere/elastic.v5"
 	"io/ioutil"
 	"net/url"
@@ -249,7 +250,7 @@ func drainOldEntries(entries *[]displayedEntry, cutOffTimestamp string) {
 
 func (tail *Tail) processHit(hit *elastic.SearchHit) map[string]interface{} {
 	var entry map[string]interface{}
-	err := json.Unmarshal(*hit.Source, &entry)
+	err := json.Unmarshal(hit.Source, &entry)
 	if err != nil {
 		Error.Fatalln("Failed parsing ElasticSearch response.", err)
 	}
@@ -379,7 +380,7 @@ func main() {
 	app.Version = VERSION
 	app.ArgsUsage = "[query-string]\n   Options marked with (*) are saved between invocations of the command. Each time you specify an option marked with (*) previously stored settings are erased."
 	app.Flags = config.Flags()
-	app.Action = func(c *cli.Context) {
+	app.Action = func(c *cli.Context)error {
 
 		if c.IsSet("help") {
 			cli.ShowAppHelp(c)
@@ -458,7 +459,7 @@ func main() {
 			if args.Present() {
 				if len(config.QueryDefinition.Terms) > 1 {
 					config.QueryDefinition.Terms = append(config.QueryDefinition.Terms, "AND")
-					config.QueryDefinition.Terms = append(config.QueryDefinition.Terms, args...)
+					config.QueryDefinition.Terms = append(config.QueryDefinition.Terms, args.Slice()...)
 				} else {
 					config.QueryDefinition.Terms = []string{args.First()}
 					config.QueryDefinition.Terms = append(config.QueryDefinition.Terms, args.Tail()...)
@@ -471,6 +472,8 @@ func main() {
 		configToSave.SaveDefault()
 
 		tail.Start(!config.IsListOnly(), config.InitialEntries)
+
+		return nil
 	}
 
 	app.Run(os.Args)
